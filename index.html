@@ -787,16 +787,39 @@
         <div class="card">
           <div class="card-title">🗓️ Registrar partido</div>
           <div class="card-sub">Cargá los resultados del partido de hoy.</div>
-          <div class="input-group">
-            <label>Fecha del partido</label>
-            <input type="text" id="partido-fecha" placeholder="Ej: 28/06/2025">
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="input-group">
+              <label>📅 Fecha del partido</label>
+              <input type="date" id="partido-fecha">
+            </div>
+            <div class="input-group">
+              <label>🏟️ Estadio / Cancha</label>
+              <input type="text" id="partido-estadio" placeholder="Ej: La Bombonera del Barrio">
+            </div>
           </div>
+
           <div class="input-group">
-            <label>Equipo ganador (seleccioná jugadores)</label>
+            <label>⚽ Marcador final</label>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="flex:1;text-align:center;">
+                <div style="font-family:'Oswald',sans-serif;font-size:0.7rem;color:var(--azul);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Equipo 1</div>
+                <input type="number" id="goles-equipo1" min="0" max="99" value="0" style="text-align:center;font-family:'Bebas Neue',cursive;font-size:2rem;padding:8px;color:var(--dorado);">
+              </div>
+              <div style="font-family:'Bebas Neue',cursive;font-size:2rem;color:var(--gris);">—</div>
+              <div style="flex:1;text-align:center;">
+                <div style="font-family:'Oswald',sans-serif;font-size:0.7rem;color:var(--rojo);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Equipo 2</div>
+                <input type="number" id="goles-equipo2" min="0" max="99" value="0" style="text-align:center;font-family:'Bebas Neue',cursive;font-size:2rem;padding:8px;color:var(--dorado);">
+              </div>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>🏆 Equipo ganador (seleccioná los jugadores)</label>
             <div id="ganadores-check" class="check-list"></div>
           </div>
           <div class="input-group">
-            <label>Goleadores</label>
+            <label>⚽ Goleadores</label>
             <div id="goles-lista" style="display:flex;flex-direction:column;gap:6px;"></div>
             <button class="btn sec" style="margin-top:8px;font-size:0.75rem;padding:6px 14px;" onclick="addFilaGol()">+ Agregar goleador</button>
           </div>
@@ -1117,8 +1140,16 @@ function addFilaGol() {
 }
 
 async function guardarPartido() {
-  const fecha = document.getElementById('partido-fecha').value.trim();
-  if (!fecha) { toast('Ingresá la fecha del partido'); return; }
+  const fechaRaw = document.getElementById('partido-fecha').value;
+  if (!fechaRaw) { toast('Ingresá la fecha del partido'); return; }
+  // Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
+  const [y,m,d] = fechaRaw.split('-');
+  const fecha = `${d}/${m}/${y}`;
+
+  const estadio = document.getElementById('partido-estadio').value.trim() || 'Cancha del barrio';
+  const golesE1 = parseInt(document.getElementById('goles-equipo1').value) || 0;
+  const golesE2 = parseInt(document.getElementById('goles-equipo2').value) || 0;
+  const marcador = `${golesE1} - ${golesE2}`;
 
   const ganadores = [...document.querySelectorAll('#ganadores-check .check-chip.checked')].map(el => el.dataset.id);
   const goles = {};
@@ -1129,13 +1160,16 @@ async function guardarPartido() {
   const presencias = {};
   if (sorteoActual?.ids) sorteoActual.ids.forEach(id => { presencias[id]=1; });
 
-  const partido = { id: Date.now().toString(), fecha, ganadores, goles, presencias };
+  const partido = { id: Date.now().toString(), fecha, estadio, marcador, ganadores, goles, presencias };
   const { error } = await sb.from('partidos').insert(partido);
   if (error) { toast('Error al guardar', true); return; }
 
   partidos.unshift(partido);
   sorteoActual = null;
   document.getElementById('partido-fecha').value = '';
+  document.getElementById('partido-estadio').value = '';
+  document.getElementById('goles-equipo1').value = '0';
+  document.getElementById('goles-equipo2').value = '0';
   document.querySelectorAll('#ganadores-check .check-chip').forEach(el => el.classList.remove('checked'));
   document.getElementById('goles-lista').innerHTML = '';
   addFilaGol();
@@ -1193,13 +1227,19 @@ function renderHistorial() {
     const g=(p.ganadores||[]).map(id=>jm[id]||'?').join(', ')||'—';
     const gl=Object.entries(p.goles||{}).map(([id,n])=>`${jm[id]||'?'} (${n})`).join(', ')||'—';
     const pr=Object.keys(p.presencias||{}).map(id=>jm[id]||'?').join(', ')||'—';
+    const marcador = p.marcador || '—';
+    const estadio = p.estadio || '—';
     return `
       <div class="partido-item">
-        <div class="p-fecha">📅 Partido del ${p.fecha}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div class="p-fecha" style="margin-bottom:0;">📅 ${p.fecha}</div>
+          <div style="font-family:'Bebas Neue',cursive;font-size:1.6rem;color:var(--dorado);letter-spacing:2px;">${marcador}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:0.75rem;color:var(--gris);letter-spacing:1px;">🏟️ ${estadio}</div>
+        </div>
         <div class="p-detalle">
           <div class="p-stat"><span class="p-label">🏆 Ganadores</span><span class="p-val">${g}</span></div>
-          <div class="p-stat"><span class="p-label">⚽ Goles</span><span class="p-val">${gl}</span></div>
-          <div class="p-stat"><span class="p-label">📅 Presencias</span><span class="p-val">${pr}</span></div>
+          <div class="p-stat"><span class="p-label">⚽ Goleadores</span><span class="p-val">${gl}</span></div>
+          <div class="p-stat"><span class="p-label">👟 Presencias</span><span class="p-val">${pr}</span></div>
         </div>
         ${adminLoggedIn?`<div style="margin-top:10px;"><button class="btn-sm del" onclick="eliminarPartido('${p.id}')">🗑️ Eliminar partido</button></div>`:''}
       </div>`;
