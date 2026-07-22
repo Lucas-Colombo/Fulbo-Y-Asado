@@ -640,13 +640,72 @@ select option { background: var(--bg3); }
 .multa-pub-btn:hover { background: rgba(231,76,60,0.15); }
 
 @media (max-width: 640px) {
-  .two-col, .equipos-grid, .partido-body { grid-template-columns: 1fr; }
+  .two-col, .equipos-grid, .partido-body, .admin-grid { grid-template-columns: 1fr; }
   .three-col { grid-template-columns: 1fr; }
   .partido-stat-block { border-right: none; border-bottom: 1px solid var(--border); }
   .partido-stat-block:last-child { border-bottom: none; }
-  .header-inner { padding: 0 14px; }
-  main { padding: 14px; }
+  main { padding: 12px; }
+
+  /* Header mobile: logo arriba, nav abajo */
+  .header-inner {
+    flex-direction: column;
+    height: auto;
+    padding: 10px 14px 0;
+    gap: 0;
+    align-items: flex-start;
+  }
+  .logo { padding-bottom: 10px; }
   .logo-name { font-size: 0.95rem; }
+  .logo-tag { font-size: 0.6rem; }
+  .logo-icon { width: 32px; height: 32px; }
+  .sync-dot { font-size: 0.65rem; padding: 2px 7px; }
+
+  /* Nav en fila scrolleable */
+  nav {
+    width: calc(100% + 28px);
+    margin-left: -14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 14px 2px;
+    gap: 2px;
+    flex-wrap: nowrap;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+  }
+
+  /* Cards */
+  .card { padding: 14px; }
+  .card-title { font-size: 0.7rem; }
+
+  /* Tabs en mobile */
+  .tabs { gap: 1px; }
+  .tab-btn { font-size: 0.72rem; padding: 6px 8px; }
+
+  /* Chips jugadores */
+  .jugador-chip { padding: 5px 10px 5px 5px; }
+  .chip-name { font-size: 0.75rem; }
+
+  /* Equipos */
+  .equipo-label { font-size: 0.7rem; }
+
+  /* Goles en vivo */
+  .gol-btn { width: 28px; height: 28px; font-size: 1rem; }
+  .gol-count { font-size: 0.82rem; min-width: 20px; }
+
+  /* Historial */
+  .partido-marcador { font-size: 1.3rem; }
+  .partido-header { padding: 10px 12px; }
+  .partido-stat-block { padding: 10px 12px; }
+
+  /* Inline rows */
+  .inline-row { flex-direction: column; }
+  .inline-row .btn { width: 100%; justify-content: center; }
 }
 </style>
 </head>
@@ -736,7 +795,10 @@ select option { background: var(--bg3); }
     <div class="card">
       <div class="card-header">
         <div class="card-title">🏆 Equipos del día</div>
-        <button class="btn btn-ghost btn-sm" onclick="sortearEquipos()">🔄 Resortear</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="compartirWhatsApp()">📲 Compartir</button>
+          <button class="btn btn-ghost btn-sm" onclick="sortearEquipos()">🔄 Resortear</button>
+        </div>
       </div>
       <div class="equipos-grid">
         <div class="equipo-card equipo-a">
@@ -771,6 +833,7 @@ select option { background: var(--bg3); }
       <button class="tab-btn active" onclick="showTab('goles',this)">⚽ Goleadores</button>
       <button class="tab-btn" onclick="showTab('victorias',this)">🏆 Victorias</button>
       <button class="tab-btn" onclick="showTab('presencias',this)">📅 Presencias</button>
+      <button class="tab-btn" onclick="showTab('mvp',this)">⭐ MVP</button>
     </div>
     <div id="tab-goles" class="stats-view active">
       <table class="ranking-table"><thead><tr><th>#</th><th>Jugador</th><th>Goles</th></tr></thead><tbody id="tbody-goles"></tbody></table>
@@ -780,6 +843,9 @@ select option { background: var(--bg3); }
     </div>
     <div id="tab-presencias" class="stats-view">
       <table class="ranking-table"><thead><tr><th>#</th><th>Jugador</th><th>Presencias</th></tr></thead><tbody id="tbody-presencias"></tbody></table>
+    </div>
+    <div id="tab-mvp" class="stats-view">
+      <table class="ranking-table"><thead><tr><th>#</th><th>Jugador</th><th>Figuras</th></tr></thead><tbody id="tbody-mvp"></tbody></table>
     </div>
   </div>
 </div>
@@ -884,6 +950,13 @@ select option { background: var(--bg3); }
           <div class="input-label">⚽ Goleadores</div>
           <div id="goles-lista"></div>
           <button class="btn btn-ghost btn-xs" style="margin-top:6px;width:fit-content;" onclick="addFilaGol()">+ Agregar goleador</button>
+        </div>
+
+        <div class="input-group">
+          <div class="input-label">⭐ MVP / Figura del partido</div>
+          <select id="partido-mvp">
+            <option value="">— Sin figura —</option>
+          </select>
         </div>
 
         <div style="padding:10px 12px;background:rgba(0,212,170,0.06);border:1px solid rgba(0,212,170,0.12);border-radius:8px;font-size:0.75rem;color:var(--text2);margin-bottom:14px;">
@@ -1004,6 +1077,7 @@ let editingId = null;
 let selectedStar = 3;
 let seleccionados = new Set();
 let sorteoActual = null;
+let ultimoSorteo = null;
 let golesEnVivo = {}; // {jugadorId: count}
 
 // ===== AVATAR =====
@@ -1299,6 +1373,12 @@ function sortearEquipos() {
   golesEnVivo = {};
   [...campoA, ...campoB].forEach(j => { golesEnVivo[j.id] = 0; });
 
+  // Guardar equipos para compartir
+  ultimoSorteo = {
+    equipo1: { arquero: arqA, campo: campoA.map(j => j.nombre) },
+    equipo2: { arquero: arqB, campo: campoB.map(j => j.nombre) }
+  };
+
   renderEquipo('lista-a', campoA, arqA);
   renderEquipo('lista-b', campoB, arqB);
 
@@ -1342,6 +1422,28 @@ function cambiarGol(id, delta) {
   }
 }
 
+function compartirWhatsApp() {
+  if (!ultimoSorteo) { toast('Primero sorteá los equipos', 'error'); return; }
+
+  const linea = (nombre, esArq) => esArq ? `🧤 ${nombre} (ARQ)` : `▪️ ${nombre}`;
+
+  let texto = '⚽ *EQUIPOS DE HOY* ⚽\n';
+  texto += '_Fulbo, Asado y Amigos_\n\n';
+
+  texto += '🔵 *EQUIPO 1*\n';
+  if (ultimoSorteo.equipo1.arquero) texto += linea(ultimoSorteo.equipo1.arquero, true) + '\n';
+  ultimoSorteo.equipo1.campo.forEach(n => { texto += linea(n, false) + '\n'; });
+
+  texto += '\n🔴 *EQUIPO 2*\n';
+  if (ultimoSorteo.equipo2.arquero) texto += linea(ultimoSorteo.equipo2.arquero, true) + '\n';
+  ultimoSorteo.equipo2.campo.forEach(n => { texto += linea(n, false) + '\n'; });
+
+  texto += '\n🍺 ¡Que gane el mejor! 🔥';
+
+  const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
+  window.open(url, '_blank');
+}
+
 // ===== REGISTRO PARTIDO =====
 function renderGanadoresCheck() {
   const c = document.getElementById('ganadores-check');
@@ -1352,6 +1454,12 @@ function renderGanadoresCheck() {
       ${j.nombre}
     </div>
   `).join('');
+  // Poblar selector MVP
+  const mvpSel = document.getElementById('partido-mvp');
+  if (mvpSel) {
+    mvpSel.innerHTML = '<option value="">— Sin figura —</option>' +
+      jugadores.map(j => `<option value="${j.id}">${j.nombre}</option>`).join('');
+  }
 }
 
 function jugOpts() {
@@ -1394,7 +1502,9 @@ async function guardarPartido() {
   const presencias = {};
   if (sorteoActual?.ids) sorteoActual.ids.forEach(id => { presencias[id] = 1; });
 
-  const partido = { id: Date.now().toString(), fecha, estadio, marcador, ganadores, goles, presencias };
+  const mvp = document.getElementById('partido-mvp').value || '';
+
+  const partido = { id: Date.now().toString(), fecha, estadio, marcador, ganadores, goles, presencias, mvp };
   const { error } = await sb.from('partidos').insert(partido);
   if (error) { toast('Error al guardar', 'error'); return; }
 
@@ -1406,6 +1516,7 @@ async function guardarPartido() {
   document.getElementById('partido-estadio').value = '';
   document.getElementById('goles-eq1').value = '0';
   document.getElementById('goles-eq2').value = '0';
+  document.getElementById('partido-mvp').value = '';
   document.querySelectorAll('#ganadores-check .check-chip').forEach(el => el.classList.remove('checked'));
   document.getElementById('goles-lista').innerHTML = '';
   addFilaGol();
@@ -1424,11 +1535,12 @@ function showTab(name, btn) {
 
 function calcStats() {
   const s = {};
-  jugadores.forEach(j => { s[j.id] = { nombre: j.nombre, foto: j.foto, goles: 0, victorias: 0, presencias: 0 }; });
+  jugadores.forEach(j => { s[j.id] = { nombre: j.nombre, foto: j.foto, goles: 0, victorias: 0, presencias: 0, mvp: 0 }; });
   partidos.forEach(p => {
     (p.ganadores||[]).forEach(id => { if(s[id]) s[id].victorias++; });
     Object.entries(p.goles||{}).forEach(([id,n]) => { if(s[id]) s[id].goles += n; });
     Object.entries(p.presencias||{}).forEach(([id,n]) => { if(s[id]) s[id].presencias += n; });
+    if (p.mvp && s[p.mvp]) s[p.mvp].mvp++;
   });
   return Object.values(s);
 }
@@ -1453,6 +1565,7 @@ function renderStats() {
   renderTabla('tbody-goles','goles',s);
   renderTabla('tbody-victorias','victorias',s);
   renderTabla('tbody-presencias','presencias',s);
+  renderTabla('tbody-mvp','mvp',s);
 }
 
 // ===== HISTORIAL =====
@@ -1464,12 +1577,14 @@ function renderHistorial() {
     const g = (p.ganadores||[]).map(id => jm[id]||'?').join(', ') || '—';
     const gl = Object.entries(p.goles||{}).map(([id,n]) => `${jm[id]||'?'} (${n})`).join(', ') || '—';
     const pr = Object.keys(p.presencias||{}).map(id => jm[id]||'?').join(', ') || '—';
+    const mvpNombre = p.mvp && jm[p.mvp] ? jm[p.mvp] : null;
     return `
       <div class="partido-card">
         <div class="partido-header">
           <div class="partido-meta">
             <span class="partido-fecha">📅 ${p.fecha}</span>
             <span class="partido-estadio">🏟️ ${p.estadio || 'Cancha del barrio'}</span>
+            ${mvpNombre ? `<span class="stat-pill" style="color:var(--yellow);border-color:rgba(243,156,18,0.3);background:rgba(243,156,18,0.08);">⭐ Figura: ${mvpNombre}</span>` : ''}
           </div>
           <div class="partido-marcador">${p.marcador || '—'}</div>
         </div>
