@@ -1577,6 +1577,10 @@ function renderHistorial() {
     const g = (p.ganadores||[]).map(id => jm[id]||'?').join(', ') || '—';
     const gl = Object.entries(p.goles||{}).map(([id,n]) => `${jm[id]||'?'} (${n})`).join(', ') || '—';
     const pr = Object.keys(p.presencias||{}).map(id => jm[id]||'?').join(', ') || '—';
+    // Perdedores = presencias que NO están en ganadores
+    const ganSet = new Set(p.ganadores||[]);
+    const perdedores = Object.keys(p.presencias||{}).filter(id => !ganSet.has(id)).map(id => jm[id]||'?');
+    const perd = perdedores.length ? perdedores.join(', ') : '—';
     const mvpNombre = p.mvp && jm[p.mvp] ? jm[p.mvp] : null;
     return `
       <div class="partido-card">
@@ -1588,10 +1592,14 @@ function renderHistorial() {
           </div>
           <div class="partido-marcador">${p.marcador || '—'}</div>
         </div>
-        <div class="partido-body">
+        <div class="partido-body" style="grid-template-columns:1fr 1fr;">
           <div class="partido-stat-block">
-            <div class="psb-label">🏆 Ganadores</div>
+            <div class="psb-label" style="color:var(--accent);">🏆 Ganadores</div>
             <div class="psb-val">${g}</div>
+          </div>
+          <div class="partido-stat-block">
+            <div class="psb-label" style="color:var(--red);">💀 Perdedores</div>
+            <div class="psb-val">${perd}</div>
           </div>
           <div class="partido-stat-block">
             <div class="psb-label">⚽ Goleadores</div>
